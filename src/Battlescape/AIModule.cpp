@@ -3282,6 +3282,11 @@ Position AIModule::furthestToGoTowards(Position target, BattleActionCost reserve
 {
 	//consider time-units we already spent
 	reserved.Time = _unit->getTimeUnits() - reserved.Time;
+	//We need to consider the cost of standing up
+	if (_unit->isKneeled())
+	{
+		reserved.Time -= _unit->getKneelUpCost();
+	}
 	PathfindingNode *targetNode = NULL;
 	float closestDistToTarget = 255;
 	for (auto pn : _allPathFindingNodes)
