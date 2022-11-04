@@ -161,6 +161,8 @@ public:
 	int brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, bool grenade = false) const;
 	/// An inaccurate simplified check for line of fire from a specific position to a specific target
 	bool quickLineOfFire(Position pos, BattleUnit *target);
+	/// how many time-units would it take to turn to a specific target
+	int getTurnCostTowards(Position target);
 };
 
 }

@@ -1421,8 +1421,11 @@ bool AIModule::selectSpottedUnitForSniper()
 		costThrow.actor = _attackAction.actor;
 		costThrow.weapon = _unit->getGrenadeFromBelt();
 		costThrow.updateTU();
-		costThrow.Time += 4; // Vanilla TUs for AI picking up grenade from belt
-		costThrow += _attackAction.actor->getActionTUs(BA_PRIME, costThrow.weapon);
+		if (!costThrow.weapon->isFuseEnabled())
+		{
+			costThrow.Time += 4; // Vanilla TUs for AI picking up grenade from belt
+			costThrow += _attackAction.actor->getActionTUs(BA_PRIME, costThrow.weapon);
+		}
 	}
 
 	for (std::vector<BattleUnit*>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
@@ -2422,8 +2425,14 @@ void AIModule::grenadeAction()
 	action.actor = _unit;
 
 	action.updateTU();
-	action.Time += 4; // 4TUs for picking up the grenade
-	action += _unit->getActionTUs(BA_PRIME, grenade);
+	// Xilmi: Take into account that we might already have primed the grenade before
+	if (!action.weapon->isFuseEnabled())
+	{
+		action.Time += 4; // 4TUs for picking up the grenade
+		action += _unit->getActionTUs(BA_PRIME, grenade);
+	}
+	// take into account we might have to turn towards our target
+	action.Time += getTurnCostTowards(_aggroTarget->getPosition());
 	// do we have enough TUs to prime and throw the grenade?
 	if (action.haveTU())
 	{
@@ -2895,7 +2904,7 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 	if (_attackAction.type != BA_LAUNCH && selectNearestTarget() && _grenade)
 		grenadeAction();
-	else if (_attackAction.type != BA_LAUNCH)
+	if (_attackAction.type != BA_LAUNCH && _attackAction.type != BA_THROW)
 		brutalSelectSpottedUnitForSniper();
 
 	if (_attackAction.type != BA_RETHINK)
@@ -2904,9 +2913,10 @@ void AIModule::brutalThink(BattleAction* action)
 		action->target = _attackAction.target;
 		action->weapon = _attackAction.weapon;
 		action->number -= 1;
-		if (action->weapon && action->type == BA_THROW && action->weapon->getRules()->getBattleType() == BT_GRENADE)
+		if (action->weapon && action->type == BA_THROW && action->weapon->getRules()->getBattleType() == BT_GRENADE && !action->weapon->isFuseEnabled())
 		{
 			_unit->spendCost(_unit->getActionTUs(BA_PRIME, action->weapon));
+			action->weapon->setFuseTimer(0); //don't just spend the TUs for nothing! If we already circumvent the API anyways, we might as well actually prime the damn thing!
 			_unit->spendTimeUnits(4);
 		}
 		action->updateTU();
@@ -2920,7 +2930,17 @@ void AIModule::brutalThink(BattleAction* action)
 		}
 		return;
 	}
-	// Phase 2: Check if there's a tile within your range from where you can attack
+	int explosionRadius = 0;
+	if (_grenade && !_unit->getGrenadeFromBelt()->isFuseEnabled())
+	{
+		BattleItem *grenade = _unit->getGrenadeFromBelt();
+		BattleAction action;
+		action.weapon = grenade;
+		action.type = BA_THROW;
+		action.actor = _unit;
+		explosionRadius = grenade->getRules()->getExplosionRadius(BattleActionAttack::GetBeforeShoot(action));
+	}
+	// Phase 3: Check if there's a tile within your range from where you can attack
 	Position bestPostionToAttackFrom = _unit->getPosition();
 	Position targetReference;
 	BattleUnit* unitToFaceTo = NULL;
@@ -2928,12 +2948,17 @@ void AIModule::brutalThink(BattleAction* action)
 	int closestDist = 255;
 	bool needToFlee = false;
 	float preferredRange = _save->getMod()->getMaxViewDistance();
-	if (IAmPureMelee)
-		preferredRange = 1;
 
 	BattleActionCost costSnap(BA_SNAPSHOT, _unit, action->weapon);
 	if (_unit->getTimeUnits() < costSnap.Time && !IAmPureMelee)
 		needToFlee = true;
+
+	//Don't flee if we have a pre-primed-grenade. Become a suicide-bomber-instead!
+	if (needToFlee && _grenade && (_unit->getGrenadeFromBelt()->isFuseEnabled() || _unit->getArmor()->getSpecialAbility() == SPECAB_EXPLODEONDEATH || _unit->getArmor()->getSpecialAbility() == SPECAB_BURN_AND_EXPLODE))
+	{
+		needToFlee = false;
+		IAmPureMelee = true;
+	}
 
 	float bestPositionScore = 0;
 
@@ -2957,7 +2982,7 @@ void AIModule::brutalThink(BattleAction* action)
 				continue;
 			float currDist = Position::distance(pos, _unit->getPosition());
 			float giveScore = 0;
-			if (IAmPureMelee)
+			if (IAmPureMelee && _melee)
 			{
 				// Position pos, int direction, BattleUnit *attacker, BattleUnit *target, Position *dest, bool preferEnemy
 				if (_save->getTileEngine()->validMeleeRange(pos, _save->getTileEngine()->getDirectionTo(pos, target->getPosition()), _unit, target, NULL))
@@ -2981,7 +3006,7 @@ void AIModule::brutalThink(BattleAction* action)
 		}
 		if (needToFlee)
 		{
-			if (seenByEnemy)
+			if (!seenByEnemy)
 			{
 				currentScore = 100;
 			}
@@ -2990,7 +3015,7 @@ void AIModule::brutalThink(BattleAction* action)
 		}
 		if (currentScore == 0)
 			continue;
-		currentScore /= pu->getTUCost(false).time;
+		currentScore /= pu->getTUCost(false).time + 1;
 		currentScore /= lofTo;
 		if (_traceAI)
 		{
@@ -3015,10 +3040,20 @@ void AIModule::brutalThink(BattleAction* action)
 	float shortestDist = 255;
 	int shortestWalkingPath = 10000;
 	BattleUnit *unitToWalkTo = NULL;
+	int primeScore = 0;
 	for (BattleUnit *target : *(_save->getUnits()))
 	{
-		if (target->getFaction() == _unit->getFaction() || target->isOut())
+		if (target->isOut())
 			continue;
+		float primeDist = Position::distance(_unit->getPosition(), target->getPosition());
+		if (target->getFaction() == _unit->getFaction())
+		{
+			if (primeDist <= explosionRadius)
+				primeScore -= 2;
+			continue;
+		}
+		if (primeDist <= explosionRadius)
+			primeScore++;
 		float currentDist = Position::distance(bestPostionToAttackFrom, target->getPosition());
 		int currentWalkPath = tuCostToReachPosition(target->getPosition());
 		if (currentDist < shortestDist)
@@ -3030,6 +3065,22 @@ void AIModule::brutalThink(BattleAction* action)
 		{
 			shortestWalkingPath = currentWalkPath;
 			unitToWalkTo = target;
+		}
+	}
+	if (_grenade && !_unit->getGrenadeFromBelt()->isFuseEnabled() && primeScore > 0)
+	{
+		BattleItem *grenade = _unit->getGrenadeFromBelt();
+		int primeCost = _unit->getActionTUs(BA_PRIME, grenade).Time + 4;
+		if (primeCost <= _unit->getTimeUnits())
+		{
+			_unit->spendTimeUnits(4);
+			_unit->spendCost(_unit->getActionTUs(BA_PRIME, grenade));
+			grenade->setFuseTimer(0); // don't just spend the TUs for nothing! If we already circumvent the API anyways, we might as well actually prime the damn thing!
+			if (_traceAI)
+				Log(LOG_INFO) << "I spent " << primeCost << " time-units on priming a grenade because primescore was " << primeScore;
+			action->type = BA_RETHINK;
+			action->number -= 1;
+			return;
 		}
 	}
 	if (unitToWalkTo != NULL)
@@ -3046,7 +3097,7 @@ void AIModule::brutalThink(BattleAction* action)
 	{
 		Log(LOG_INFO) << "Brutal-AI wants to go from "
 					  << _unit->getPosition()
-					  << " to " << bestPostionToAttackFrom << " travel-target: " << travelTarget;
+					  << " to " << bestPostionToAttackFrom << " travel-target: " << travelTarget << " Remaining TUs: " << _unit->getTimeUnits() << " TU-cost: " << tuCostToReachPosition(travelTarget);
 	}
 	if (travelTarget != _unit->getPosition())
 	{
@@ -3054,7 +3105,10 @@ void AIModule::brutalThink(BattleAction* action)
 		if (allowedToSpendAllTimeUnits)
 			reserved = BattleActionCost(_unit);
 		if (tuCostToReachPosition(travelTarget) < _unit->getTimeUnits())
+		{
 			reserved = BattleActionCost(BA_SNAPSHOT, _unit, action->weapon);
+			reserved.Time += getTurnCostTowards(travelTarget);
+		}
 		if (needToFlee || IAmPureMelee)
 			reserved = BattleActionCost(_unit);
 		bestPostionToAttackFrom = furthestToGoTowards(travelTarget, reserved);
@@ -3132,8 +3186,11 @@ bool AIModule::brutalSelectSpottedUnitForSniper()
 		costThrow.actor = _attackAction.actor;
 		costThrow.weapon = _unit->getGrenadeFromBelt();
 		costThrow.updateTU();
-		costThrow.Time += 4; // Vanilla TUs for AI picking up grenade from belt
-		costThrow += _attackAction.actor->getActionTUs(BA_PRIME, costThrow.weapon);
+		if (!costThrow.weapon->isFuseEnabled())
+		{
+			costThrow.Time += 4; // Vanilla TUs for AI picking up grenade from belt
+			costThrow += _attackAction.actor->getActionTUs(BA_PRIME, costThrow.weapon);
+		}
 	}
 
 	for (std::vector<BattleUnit *>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
@@ -3144,6 +3201,16 @@ bool AIModule::brutalSelectSpottedUnitForSniper()
 			_aggroTarget = (*i);
 			_attackAction.type = BA_RETHINK;
 			_attackAction.target = (*i)->getPosition();
+			BattleActionCost costAutoWithTurn = costAuto;
+			BattleActionCost costSnapWithTurn = costSnap;
+			BattleActionCost costAimedWithTurn = costAimed;
+			BattleActionCost costHitWithTurn = costHit;
+			BattleActionCost costThrowWithTurn = costThrow;
+			costAutoWithTurn.Time += getTurnCostTowards(_attackAction.target);
+			costSnapWithTurn.Time += getTurnCostTowards(_attackAction.target);
+			costAimedWithTurn.Time += getTurnCostTowards(_attackAction.target);
+			costHitWithTurn.Time += getTurnCostTowards(_attackAction.target);
+			costThrowWithTurn.Time += getTurnCostTowards(_attackAction.target);
 			brutalExtendedFireModeChoice(costAuto, costSnap, costAimed, costThrow, costHit, true);
 
 			BattleAction chosenAction = _attackAction;
@@ -3524,12 +3591,16 @@ int AIModule::brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bo
 	}
 
 	int tuCost = _unit->getActionTUs(action->type, action->weapon).Time;
+	tuCost += getTurnCostTowards(action->target);
 	// Need to include TU cost of getting grenade from belt + priming if we're checking throwing
 	if (action->type == BA_THROW && _grenade)
 	{
 		tuCost = _unit->getActionTUs(action->type, _unit->getGrenadeFromBelt()).Time;
-		tuCost += 4;
-		tuCost += _unit->getActionTUs(BA_PRIME, _unit->getGrenadeFromBelt()).Time;
+		if (!_unit->getGrenadeFromBelt()->isFuseEnabled())
+		{
+			tuCost += 4;
+			tuCost += _unit->getActionTUs(BA_PRIME, _unit->getGrenadeFromBelt()).Time;
+		}
 		// We don't have several shots but we can hit several targets at once
 		BattleItem *grenade = action->weapon;
 		auto radius = grenade->getRules()->getExplosionRadius(BattleActionAttack::GetBeforeShoot(*action));
@@ -3568,7 +3639,7 @@ int AIModule::brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bo
 	}
 	if (_traceAI)
 	{
-		Log(LOG_INFO) << _attackAction.weapon->getRules()->getName() << " accuracy: " << accuracy << " numberOfShots: " << numberOfShots << " tuCost: " << tuCost;
+		Log(LOG_INFO) << action->weapon->getRules()->getName() << " accuracy: " << accuracy << " numberOfShots: " << numberOfShots << " tuCost: " << tuCost;
 	}
 	return accuracy * numberOfShots * tuTotal / tuCost;
 }
@@ -3679,6 +3750,21 @@ bool AIModule::quickLineOfFire(Position pos, BattleUnit* target) {
 			}
 		}
 	return false;
+}
+
+/**
+ * Returns the amount of TUs required to turn into a specific direction
+ * @param target Positon to consider how many TUs it takes to turn towards
+ * @return amount of TUs required to turn in that direction
+ */
+int AIModule::getTurnCostTowards(Position target)
+{
+	int currDir = _unit->getFaceDirection();
+	int wantDir = _save->getTileEngine()->getDirectionTo(_unit->getPosition(), target);
+	int turnSteps = std::abs(currDir - wantDir);
+	if (turnSteps > 4)
+		turnSteps = 8 - turnSteps;
+	return turnSteps *= _unit->getArmor()->getTurnCost();
 }
 
 }
