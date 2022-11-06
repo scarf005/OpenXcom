@@ -2957,7 +2957,6 @@ void AIModule::brutalThink(BattleAction* action)
 		needToFlee = false;
 		IAmPureMelee = true;
 	}
-
 	float bestPositionScore = 0;
 
 	bool allowedToSpendAllTimeUnits = false;
@@ -3042,6 +3041,8 @@ void AIModule::brutalThink(BattleAction* action)
 				}
 				currentScore = 0;
 			}
+			else
+				currentScore = 0;
 		}
 		if (needToFlee)
 		{
@@ -3061,7 +3062,7 @@ void AIModule::brutalThink(BattleAction* action)
 			currentScore /= pu->getTUCost(false).time + 1;
 		if (_traceAI)
 		{
-			if (currentScore > 0)
+			if (lofTo > 0)
 			{
 				tile->setMarkerColor(cuddleAvoidModifier);
 				tile->setPreview(10);
@@ -3076,7 +3077,6 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 	if (_traceAI)
 		Log(LOG_INFO) << "best positon to attack from " << bestPostionToAttackFrom << " score: " << bestPositionScore;
-
 	//If we can't attack this turn and can't get to a spot from where we can oversee any target, we should know about a tile guard from afar
 	bool isEncircle = true;
 	if (bestPositionScore == 0 && encircleTile != NULL)
