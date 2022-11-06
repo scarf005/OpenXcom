@@ -3062,7 +3062,7 @@ void AIModule::brutalThink(BattleAction* action)
 			currentScore /= pu->getTUCost(false).time + 1;
 		if (_traceAI)
 		{
-			if (lofTo > 0)
+			if (cuddleAvoidModifier > 0)
 			{
 				tile->setMarkerColor(cuddleAvoidModifier);
 				tile->setPreview(10);
