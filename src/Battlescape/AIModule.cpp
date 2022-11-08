@@ -2900,7 +2900,7 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 	if (_blaster)
 	{
-		wayPointAction();
+		brutalBlaster();
 	}
 	if (_attackAction.type != BA_LAUNCH && selectNearestTarget() && _grenade)
 		grenadeAction();
@@ -3817,7 +3817,8 @@ int AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingU
 	}
 	if (_traceAI)
 	{
-		Log(LOG_INFO) << _unit->getGrenadeFromBelt()->getRules()->getName() << " to " << targetPos
+		Log(LOG_INFO) << "Explosion with radius "<<radius
+					  << " at " << targetPos
 					  << " affected AoE targets: " << enemiesAffected;
 	}
 	return enemiesAffected;
@@ -3883,6 +3884,143 @@ int AIModule::getTurnCostTowards(Position target)
 	if (turnSteps > 4)
 		turnSteps = 8 - turnSteps;
 	return turnSteps *= _unit->getArmor()->getTurnCost();
+}
+
+/**
+ * Fires a waypoint projectile at an enemy we, or one of our teammates sees.
+ *
+ * Waypoint targeting: pick from any units currently spotted by our allies.
+ */
+void AIModule::brutalBlaster()
+{
+	BattleActionCost attackCost(BA_LAUNCH, _unit, _attackAction.weapon);
+	if (!attackCost.haveTU())
+	{
+		// cannot make a launcher attack - consider some other behaviour, like running away, or standing motionless.
+		return;
+	}
+	_aggroTarget = 0;
+	int highestScore = 0;
+	for (std::vector<BattleUnit *>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end() && _aggroTarget == 0; ++i)
+	{
+		if ((*i)->isOut() || (*i)->getFaction() == _unit->getFaction() || !visibleToAnyFriend(*i))
+			continue;
+		std::vector<PathfindingNode *> path = _save->getPathfinding()->findReachablePathFindingNodes(_unit, BattleActionCost(), true, *i);
+		bool havePath = false;
+		for (auto node : path)
+		{
+			if (node->getPosition() == (*i)->getPosition())
+				havePath = true;
+		}
+		auto ammo = _attackAction.weapon->getAmmoForAction(BA_LAUNCH);
+		int score = brutalExplosiveEfficacy((*i)->getPosition(), _unit, ammo->getRules()->getExplosionRadius({BA_LAUNCH, _unit, _attackAction.weapon, ammo}), false);
+		if (havePath &&
+			score > highestScore)
+		{
+			highestScore = score;
+			_aggroTarget = *i;
+		}
+		_save->getPathfinding()->abortPath();
+	}
+
+	if (_aggroTarget != 0)
+	{
+		std::vector<PathfindingNode *> missilePaths = _save->getPathfinding()->findReachablePathFindingNodes(_unit, BattleActionCost(), true, _aggroTarget);
+		_attackAction.type = BA_LAUNCH;
+		_attackAction.updateTU();
+		if (!_attackAction.haveTU())
+		{
+			_attackAction.type = BA_RETHINK;
+			return;
+		}
+		_attackAction.waypoints.clear();
+		int PathDirection;
+		int CollidesWith;
+		int maxWaypoints = _attackAction.weapon->getCurrentWaypoints();
+		if (maxWaypoints == -1)
+		{
+			maxWaypoints = 6 + (_attackAction.diff * 2);
+		}
+		PathfindingNode *targetNode = NULL;
+		Position target = _aggroTarget->getPosition();
+		float closestDistToTarget = 255;
+		for (auto pn : missilePaths)
+		{
+			if (target == pn->getPosition())
+			{
+				targetNode = pn;
+				break;
+			}
+			// If we want to get close to the target it must be on the same layer
+			if (target.z != pn->getPosition().z)
+			{
+				if (target.z > pn->getPosition().z)
+				{
+					Tile *targetTile = _save->getTile(target);
+					Tile *tileAbovePathNode = _save->getAboveTile(_save->getTile(pn->getPosition()));
+					if (!targetTile->hasNoFloor() && !tileAbovePathNode->hasNoFloor())
+						continue;
+				}
+				if (target.z < pn->getPosition().z)
+				{
+					Tile *tileAbovetargetTile = _save->getAboveTile(_save->getTile(target));
+					Tile *pathNodeTile = _save->getTile(pn->getPosition());
+					if (!tileAbovetargetTile->hasNoFloor() && !pathNodeTile->hasNoFloor())
+						continue;
+				}
+			}
+			float currDist = Position::distance(target, pn->getPosition());
+			if (currDist < closestDistToTarget)
+			{
+				closestDistToTarget = currDist;
+				targetNode = pn;
+			}
+		}
+
+		if (targetNode != NULL)
+		{
+			_attackAction.waypoints.push_back(target);
+			Tile *tile = _save->getTile(target);
+			if (_traceAI)
+			{
+				tile->setMarkerColor(_unit->getId());
+				tile->setPreview(10);
+				tile->setTUMarker(_attackAction.waypoints.size());
+			}
+			int lastDirection = -1;
+			while (targetNode->getPrevNode() != NULL)
+			{
+				if (targetNode->getPrevNode() != NULL)
+				{
+					int direction = _save->getTileEngine()->getDirectionTo(targetNode->getPosition(), targetNode->getPrevNode()->getPosition());
+					bool zChange = false;
+					if (targetNode->getPosition().z != targetNode->getPrevNode()->getPosition().z)
+						zChange = true;
+					if (direction != lastDirection || zChange)
+					{
+						_attackAction.waypoints.push_front(targetNode->getPosition());
+						Tile *tile = _save->getTile(targetNode->getPosition());
+						if (_traceAI)
+						{
+							tile->setMarkerColor(_unit->getId());
+							tile->setPreview(10);
+							tile->setTUMarker(_attackAction.waypoints.size());
+						}
+					}
+					lastDirection = direction;
+				}
+				targetNode = targetNode->getPrevNode();
+			}
+			_attackAction.target = _attackAction.waypoints.front();
+			if (_attackAction.waypoints.size() > maxWaypoints)
+				_attackAction.type = BA_RETHINK;
+		}
+		else
+		{
+			_attackAction.type = BA_RETHINK;
+		}
+		return;
+	}
 }
 
 }

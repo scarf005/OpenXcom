@@ -165,6 +165,8 @@ public:
 	bool clearSight(Position pos, Position target);
 	/// how many time-units would it take to turn to a specific target
 	int getTurnCostTowards(Position target);
+	/// Using weapons like the blaster but actually hitting what we want while avoiding to mow down our allies
+	void brutalBlaster();
 };
 
 }
