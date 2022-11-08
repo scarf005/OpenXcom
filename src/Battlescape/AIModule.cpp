@@ -3072,7 +3072,7 @@ void AIModule::brutalThink(BattleAction* action)
 	if (_traceAI)
 		Log(LOG_INFO) << "best positon to attack from " << bestPostionToAttackFrom << " score: " << bestPositionScore << " need to flee: " << needToFlee;
 	//If we can't attack this turn and can't get to a spot from where we can oversee any target, we should know about a tile guard from afar
-	bool isEncircle = true;
+	bool isEncircle = false;
 	if (bestPositionScore == 0 && encircleTile != NULL)
 	{
 		//If we get here, we cannot possibly need to flee
@@ -3111,6 +3111,7 @@ void AIModule::brutalThink(BattleAction* action)
 			score *= elevationBonus;
 			if (score > bestPositionScore)
 			{
+				isEncircle = true;
 				bestPositionScore = score;
 				bestPostionToAttackFrom = pos;
 				if (_traceAI)
@@ -3178,11 +3179,11 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 
 	//If I'm having friends with line of fire but neither am attacking the enemy nor getting told to move somewhere else, it must mean they are in smoke or something. In this case I move towards them
-	if (!needToFlee && friendsWithLof && bestPostionToAttackFrom == _unit->getPosition() && unitToWalkTo != NULL)
+	if (!needToFlee && (friendsWithLof || !isEncircle) && bestPostionToAttackFrom == _unit->getPosition() && unitToWalkTo != NULL)
 	{
 		travelTarget = unitToWalkTo->getPosition();
 		if (_traceAI)
-			Log(LOG_INFO) << "Should be able to fire but somehow couldn't. Walk towards the target at " << travelTarget;
+			Log(LOG_INFO) << "Should be able to fire but somehow couldn't. Or we have no way of encircling this unit. Walk towards the target at " << travelTarget;
 	}
 	else if (bestPositionScore > 0)
 		travelTarget = bestPostionToAttackFrom;
@@ -3237,6 +3238,7 @@ void AIModule::brutalThink(BattleAction* action)
 	{
 		if (action->target == _unit->getPosition())
 		{
+			Tile *tile = _save->getTile(_unit->getPosition());
 			if (action->finalFacing != _unit->getDirection() && action->finalFacing != -1)
 			{
 				action->type = BA_TURN;
@@ -3246,6 +3248,8 @@ void AIModule::brutalThink(BattleAction* action)
 			else
 			{
 				action->type = BA_NONE;
+				if (unitToFaceTo != NULL)
+					action->target = unitToFaceTo->getPosition();
 			}
 		}
 		else
@@ -3950,30 +3954,6 @@ void AIModule::brutalBlaster()
 			{
 				targetNode = pn;
 				break;
-			}
-			// If we want to get close to the target it must be on the same layer
-			if (target.z != pn->getPosition().z)
-			{
-				if (target.z > pn->getPosition().z)
-				{
-					Tile *targetTile = _save->getTile(target);
-					Tile *tileAbovePathNode = _save->getAboveTile(_save->getTile(pn->getPosition()));
-					if (!targetTile->hasNoFloor() && !tileAbovePathNode->hasNoFloor())
-						continue;
-				}
-				if (target.z < pn->getPosition().z)
-				{
-					Tile *tileAbovetargetTile = _save->getAboveTile(_save->getTile(target));
-					Tile *pathNodeTile = _save->getTile(pn->getPosition());
-					if (!tileAbovetargetTile->hasNoFloor() && !pathNodeTile->hasNoFloor())
-						continue;
-				}
-			}
-			float currDist = Position::distance(target, pn->getPosition());
-			if (currDist < closestDistToTarget)
-			{
-				closestDistToTarget = currDist;
-				targetNode = pn;
 			}
 		}
 

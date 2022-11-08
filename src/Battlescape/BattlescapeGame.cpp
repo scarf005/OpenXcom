@@ -400,7 +400,7 @@ void BattlescapeGame::handleAI(BattleUnit *unit)
 			targetTile->setDangerous(true);
 		}
 	}
-	if (action.type == BA_TURN)
+	if (action.type == BA_TURN || action.type == BA_NONE)
 	{
 		ss << "Turning in direction of " << action.target;
 		statePushBack(new UnitTurnBState(this, action));
