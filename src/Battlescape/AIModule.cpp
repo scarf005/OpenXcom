@@ -3157,10 +3157,10 @@ void AIModule::brutalThink(BattleAction* action)
 	}
 	if (unitToWalkTo != NULL)
 	{
-		if (tuCostToReachPosition(unitToWalkTo->getPosition()) > 6 * _save->getMod()->getMaxViewDistance() + unitToWalkTo->getBaseStats()->tu + _unit->getBaseStats()->tu)
+		if (tuCostToReachPosition(unitToWalkTo->getPosition()) > 6 * _save->getMod()->getMaxViewDistance() + unitToWalkTo->getBaseStats()->tu)
 			allowedToSpendAllTimeUnits = true;
 		if (_traceAI)
-			Log(LOG_INFO) << "Distance to " << unitToWalkTo->getPosition() << ": " << tuCostToReachPosition(unitToWalkTo->getPosition()) << " max distance to run: " << 6 * _save->getMod()->getMaxViewDistance() + unitToWalkTo->getBaseStats()->tu + _unit->getBaseStats()->tu << " allowedToSpendAllTimeUnits: " << allowedToSpendAllTimeUnits;
+			Log(LOG_INFO) << "Distance to " << unitToWalkTo->getPosition() << ": " << tuCostToReachPosition(unitToWalkTo->getPosition()) << " max distance to run: " << 6 * _save->getMod()->getMaxViewDistance() + unitToWalkTo->getBaseStats()->tu << " allowedToSpendAllTimeUnits: " << allowedToSpendAllTimeUnits;
 	}
 
 	//If I'm having friends with line of fire but neither am attacking the enemy nor getting told to move somewhere else, it must mean they are in smoke or something. In this case I move towards them
