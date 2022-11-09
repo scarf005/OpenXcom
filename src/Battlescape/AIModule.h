@@ -142,7 +142,7 @@ public:
 	/// Frees up the destination node for another Unit to select
 	void freePatrolTarget();
 	/// Checks whether anyone on our team can see the target
-	bool visibleToAnyFriend(BattleUnit *target, bool ignoreMyself = false);
+	bool visibleToAnyFriend(BattleUnit *target);
 	/// Handles behavior of brutalAI
 	void brutalThink(BattleAction *action);
 	/// Like selectSpottedUnitForSniper but works for everyone

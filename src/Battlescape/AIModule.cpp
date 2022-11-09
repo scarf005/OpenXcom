@@ -2854,24 +2854,9 @@ void AIModule::freePatrolTarget()
 	}
 }
 
-bool AIModule::visibleToAnyFriend(BattleUnit* target, bool ignoreMyself)
+bool AIModule::visibleToAnyFriend(BattleUnit* target)
 {
-	for (std::vector<BattleUnit *>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
-	{
-		if ((*i)->getFaction() == _unit->getFaction())
-		{
-			if (ignoreMyself && _unit == (*i))
-				continue;
-			for (BattleUnit *visible : *(*i)->getVisibleUnits())
-			{
-				if (target == visible)
-				{
-					return true;
-				}
-			}
-		}
-	}
-	return false;
+	return target->getTurnsSinceSpotted() == 0;
 }
 
 void AIModule::brutalThink(BattleAction* action)
@@ -3010,7 +2995,7 @@ void AIModule::brutalThink(BattleAction* action)
 			bool lineOfFire = quickLineOfFire(pos, target);
 			if (lineOfFire && currDist <= _save->getMod()->getMaxViewDistance())
 				visibleToEnemy = true;
-			if (!visibleToAnyFriend(target, false) && currDist > _save->getMod()->getMaxViewDistance())
+			if (!visibleToAnyFriend(target) && currDist > _save->getMod()->getMaxViewDistance())
 				continue;
 			if (visibleToEnemy && target->getReactionScore() > (float)_unit->getBaseStats()->reactions * ((float)_unit->getTimeUnits() - (float)pu->getTUCost(false).time) / (float)_unit->getBaseStats()->tu)
 				wouldBeSubjectToReactionFire = true;
