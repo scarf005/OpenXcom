@@ -1559,7 +1559,7 @@ int AIModule::scoreFiringMode(BattleAction *action, BattleUnit *target, bool che
 
 		if (action->weapon->getArcingShot(action->type) || action->type == BA_THROW)
 		{
-			targetPosition = target->getPosition().toVoxel() + Position (8,8, (2 + -target->getTile()->getTerrainLevel()));
+			targetPosition = target->getPosition().toVoxel() + Position (8,8, (1 + -target->getTile()->getTerrainLevel()));
 			if (!_save->getTileEngine()->validateThrow((*action), origin, targetPosition, _save->getDepth()))
 			{
 				return 0;
@@ -2446,7 +2446,7 @@ void AIModule::grenadeAction()
 			return;
 		}
 		Position originVoxel = _save->getTileEngine()->getOriginVoxel(action, 0);
-		Position targetVoxel = action.target.toVoxel() + Position (8,8, (2 + -_save->getTile(action.target)->getTerrainLevel()));
+		Position targetVoxel = action.target.toVoxel() + Position (8,8, (1 + -_save->getTile(action.target)->getTerrainLevel()));
 		// are we within range?
 		if (_save->getTileEngine()->validateThrow(action, originVoxel, targetVoxel, _save->getDepth()))
 		{
@@ -3665,7 +3665,7 @@ int AIModule::brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bo
 		accuracy = 0;
 	if (action->type == BA_HIT && !_save->getTileEngine()->validMeleeRange(_unit, target, _unit->getDirection()))
 		accuracy = 0;
-	int numberOfShots = 1;
+	float numberOfShots = 1;
 	if (action->type == BA_AIMEDSHOT)
 	{
 		numberOfShots = action->weapon->getRules()->getConfigAimed()->shots;
@@ -3714,9 +3714,11 @@ int AIModule::brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bo
 		Position origin = _save->getTileEngine()->getOriginVoxel((*action), 0);
 		Position targetPosition;
 
+		Log(LOG_INFO) << action->weapon->getRules()->getName() << " checking LOF";
+
 		if (action->weapon->getArcingShot(action->type) || action->type == BA_THROW)
 		{
-			targetPosition = target->getPosition().toVoxel() + Position(8, 8, (2 + -target->getTile()->getTerrainLevel()));
+			targetPosition = target->getPosition().toVoxel() + Position(8, 8, (1 + -target->getTile()->getTerrainLevel()));
 			if (!_save->getTileEngine()->validateThrow((*action), origin, targetPosition, _save->getDepth()))
 			{
 				return 0;
@@ -3767,7 +3769,7 @@ float AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackin
 		if (_unit->getFaction() == _unit->getOriginalFaction())
 			enemiesAffected -= 2;
 		else
-			enemiesAffected++;
+			enemiesAffected += float(radius - distance / 2) / float(radius);
 	}
 
 	// account for the unit we're targetting
@@ -4050,7 +4052,7 @@ void AIModule::brutalGrenadeAction()
 					{
 						action.target = currentPosition;
 						Position originVoxel = _save->getTileEngine()->getOriginVoxel(action, 0);
-						Position targetVoxel = currentPosition.toVoxel() + Position(8, 8, (2 + -_save->getTile(currentPosition)->getTerrainLevel()));
+						Position targetVoxel = currentPosition.toVoxel() + Position(8, 8, (1 + -_save->getTile(currentPosition)->getTerrainLevel()));
 						if (!_save->getTileEngine()->validateThrow(action, originVoxel, targetVoxel, _save->getDepth()))
 							continue;
 						float currentEfficacy = brutalExplosiveEfficacy(currentPosition, _unit, radius, true);
