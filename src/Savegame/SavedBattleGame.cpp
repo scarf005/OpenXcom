@@ -1523,6 +1523,10 @@ void SavedBattleGame::endTurn()
 			{
 				(*i)->setTurnsSinceSpotted(0);
 			}
+			if ((*i)->getTurnsSinceSeen() < 255)
+			{
+				(*i)->setTurnsSinceSeen((*i)->getTurnsSinceSeen() + 1);
+			}
 			if ((*i)->getAIModule())
 			{
 				(*i)->getAIModule()->reset(); // clean up AI state

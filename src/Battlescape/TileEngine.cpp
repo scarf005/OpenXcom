@@ -923,7 +923,7 @@ bool TileEngine::calculateUnitsInFOV(BattleUnit* unit, const Position eventPos, 
 								if (unit->getFaction() == FACTION_HOSTILE && (*i)->getFaction() != FACTION_HOSTILE)
 								{
 									(*i)->setTurnsSinceSpotted(0);
-
+									(*i)->setTurnsSinceSeen(0);
 									(*i)->setTurnsLeftSpottedForSnipers(std::max(unit->getSpotterDuration(), (*i)->getTurnsLeftSpottedForSnipers())); // defaults to 0 = no information given to snipers
 								}
 							}
@@ -4386,6 +4386,7 @@ bool TileEngine::tryConcealUnit(BattleUnit* unit)
 	}
 
 	unit->setTurnsSinceSpotted(255);
+	unit->setTurnsSinceSeen(255);
 	unit->setTurnsLeftSpottedForSnipers(0);
 
 	return true;

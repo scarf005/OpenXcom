@@ -2856,7 +2856,7 @@ void AIModule::freePatrolTarget()
 
 bool AIModule::visibleToAnyFriend(BattleUnit* target)
 {
-	return target->getTurnsSinceSpotted() == 0;
+	return target->getTurnsSinceSeen() == 0;
 }
 
 void AIModule::brutalThink(BattleAction* action)
