@@ -5231,7 +5231,7 @@ void TileEngine::setDangerZone(Position pos, int radius, BattleUnit *unit)
 						// granted this won't properly account for explosions tearing through walls, but then we can't really
 						// know that kind of information before the fact, so let's have the AI assume that the wall (or tree)
 						// is enough to protect them.
-						if (calculateLineVoxel(originVoxel, targetVoxel, false, &trajectory, unit, unit) == V_EMPTY)
+						if (calculateLineVoxel(originVoxel, targetVoxel, true, &trajectory, unit, unit) == V_EMPTY)
 						{
 							if (trajectory.size() && (trajectory.back().toTile()) == pos + Position(x,y,0))
 							{
