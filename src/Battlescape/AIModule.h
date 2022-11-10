@@ -158,7 +158,7 @@ public:
 	/// Scores a firing mode action based on distance to target, accuracy and overall Damage dealt, also supports melee-hits
 	int brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bool checkLOF);
 	/// Used as multiplier for the throw-action in brutalScoreFiringMode
-	int brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, bool grenade = false) const;
+	float brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, bool grenade = false) const;
 	/// An inaccurate simplified check for line of fire from a specific position to a specific target
 	bool quickLineOfFire(Position pos, BattleUnit *target);
 	/// checks whether there is clear sight between two tile-positions
@@ -167,6 +167,8 @@ public:
 	int getTurnCostTowards(Position target);
 	/// Using weapons like the blaster but actually hitting what we want while avoiding to mow down our allies
 	void brutalBlaster();
+	/// Attempts to throw a grenade at tiles near potential targets when target itself couldn't be hit
+	void brutalGrenadeAction();
 };
 
 }

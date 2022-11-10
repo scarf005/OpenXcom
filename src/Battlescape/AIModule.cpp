@@ -2887,10 +2887,10 @@ void AIModule::brutalThink(BattleAction* action)
 	{
 		brutalBlaster();
 	}
-	if (_attackAction.type != BA_LAUNCH && selectNearestTarget() && _grenade)
-		grenadeAction();
-	if (_attackAction.type != BA_LAUNCH && _attackAction.type != BA_THROW)
+	else if (_attackAction.type == BA_RETHINK)
 		brutalSelectSpottedUnitForSniper();
+	if (_attackAction.type == BA_RETHINK && _grenade)
+		brutalGrenadeAction();
 
 	if (_attackAction.type != BA_RETHINK)
 	{
@@ -2971,6 +2971,8 @@ void AIModule::brutalThink(BattleAction* action)
 		if (tile == NULL)
 			continue;
 		if (tile->hasNoFloor() && _unit->getMovementType() != MT_FLY)
+			continue;
+		if (tile->getDangerous())
 			continue;
 		float currentScore = 0;
 		float elevationBonus = 1.0f + pos.z * 0.25f;
@@ -3070,6 +3072,8 @@ void AIModule::brutalThink(BattleAction* action)
 			if (tile == NULL)
 				continue;
 			if (tile->hasNoFloor() && _unit->getMovementType() != MT_FLY)
+				continue;
+			if (tile->getDangerous())
 				continue;
 			float currDist = Position::distance(pos, encirclePosition);
 			if (!clearSight(pos, encirclePosition))
@@ -3742,9 +3746,11 @@ int AIModule::brutalScoreFiringMode(BattleAction *action, BattleUnit *target, bo
  * @param grenade Is the explosion coming from a grenade?
  * @return Value greater than zero if it is worthwhile creating an explosion in the target position. Bigger value better target.
  */
-int AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, bool grenade) const
+float AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, bool grenade) const
 {
 	Tile *targetTile = _save->getTile(targetPos);
+	if (targetTile->getDangerous())
+		return 0;
 
 	// don't throw grenades at flying enemies.
 	if (grenade && targetPos.z > 0 && targetTile->hasNoFloor(_save))
@@ -3753,7 +3759,7 @@ int AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingU
 	}
 
 	int distance = Position::distance2d(attackingUnit->getPosition(), targetPos);
-	int enemiesAffected = 0;
+	float enemiesAffected = 0;
 
 	// don't go kamikaze unless we're already doomed.
 	if (abs(attackingUnit->getPosition().z - targetPos.z) <= Options::battleExplosionHeight && distance <= radius)
@@ -3768,7 +3774,10 @@ int AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingU
 	BattleUnit *target = targetTile->getUnit();
 	if (target && !targetTile->getDangerous())
 	{
-		++enemiesAffected;
+		if (_unit->getFaction() == target->getFaction())
+			enemiesAffected -= 2;
+		else
+			enemiesAffected++;
 	}
 
 	for (std::vector<BattleUnit *>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
@@ -3793,11 +3802,19 @@ int AIModule::brutalExplosiveEfficacy(Position targetPos, BattleUnit *attackingU
 			std::vector<Position> traj;
 			int collidesWith = _save->getTileEngine()->calculateLineVoxel(voxelPosA, voxelPosB, false, &traj, target, *i);
 
+			float dist = Position::distance2d(targetPos, (*i)->getPosition());
+			float distMod = float(radius - dist / 2) / float(radius);
 			if (collidesWith == V_UNIT && traj.front().toTile() == (*i)->getPosition())
 			{
+				if (_traceAI)
+				{
+					Log(LOG_INFO) << "Explosion with radius " << radius
+								  << " at " << targetPos
+								  << " affects " << (*i)->getPosition() << " with " << distMod << " sum: " << enemiesAffected;
+				}
 				if ((*i)->getFaction() == _targetFaction)
 				{
-					++enemiesAffected;
+					enemiesAffected += distMod;
 				}
 				else if ((*i)->getFaction() == attackingUnit->getFaction() || (attackingUnit->getFaction() == FACTION_NEUTRAL && (*i)->getFaction() == FACTION_PLAYER))
 					enemiesAffected -= 2; // friendlies count double
@@ -3889,7 +3906,7 @@ void AIModule::brutalBlaster()
 		return;
 	}
 	_aggroTarget = 0;
-	int highestScore = 0;
+	float highestScore = 0;
 	for (std::vector<BattleUnit *>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end() && _aggroTarget == 0; ++i)
 	{
 		if ((*i)->isOut() || (*i)->getFaction() == _unit->getFaction() || !visibleToAnyFriend(*i))
@@ -3902,7 +3919,7 @@ void AIModule::brutalBlaster()
 				havePath = true;
 		}
 		auto ammo = _attackAction.weapon->getAmmoForAction(BA_LAUNCH);
-		int score = brutalExplosiveEfficacy((*i)->getPosition(), _unit, ammo->getRules()->getExplosionRadius({BA_LAUNCH, _unit, _attackAction.weapon, ammo}), false);
+		float score = brutalExplosiveEfficacy((*i)->getPosition(), _unit, ammo->getRules()->getExplosionRadius({BA_LAUNCH, _unit, _attackAction.weapon, ammo}), false);
 		if (havePath &&
 			score > highestScore)
 		{
@@ -3964,9 +3981,9 @@ void AIModule::brutalBlaster()
 					if (direction != lastDirection || zChange)
 					{
 						_attackAction.waypoints.push_front(targetNode->getPosition());
-						Tile *tile = _save->getTile(targetNode->getPosition());
 						if (_traceAI)
 						{
+							Tile *tile = _save->getTile(targetNode->getPosition());
 							tile->setMarkerColor(_unit->getId());
 							tile->setPreview(10);
 							tile->setTUMarker(_attackAction.waypoints.size());
@@ -3985,6 +4002,82 @@ void AIModule::brutalBlaster()
 			_attackAction.type = BA_RETHINK;
 		}
 		return;
+	}
+}
+
+/**
+ * Evaluates whether to throw a grenade at an enemy or a tile nearby.
+ */
+void AIModule::brutalGrenadeAction()
+{
+	// do we have a grenade on our belt?
+	BattleItem *grenade = _unit->getGrenadeFromBelt();
+	BattleAction action;
+	action.weapon = grenade;
+	action.type = BA_THROW;
+	action.actor = _unit;
+
+	action.updateTU();
+	// Xilmi: Take into account that we might already have primed the grenade before
+	if (!action.weapon->isFuseEnabled())
+	{
+		action.Time += 4; // 4TUs for picking up the grenade
+		action += _unit->getActionTUs(BA_PRIME, grenade);
+	}
+	auto radius = grenade->getRules()->getExplosionRadius(BattleActionAttack::GetBeforeShoot(action));
+	Position bestReachablePosition;
+	float bestScore = 0;
+	for (BattleUnit *target : *(_save->getUnits()))
+	{
+		if (target->isOut())
+			continue;
+		if (target->getFaction() == _unit->getFaction())
+			continue;
+		if (!visibleToAnyFriend(target))
+			continue;
+		for (int x = 0; x < _save->getMapSizeX(); ++x)
+		{
+			for (int y = 0; y < _save->getMapSizeY(); ++y)
+			{
+				Position currentPosition(x, y, target->getPosition().z);
+				int dist = Position::distance2d(currentPosition, target->getPosition());
+				if (dist <= radius)
+				{
+					// take into account we might have to turn towards our target
+					action.Time += getTurnCostTowards(currentPosition);
+					// do we have enough TUs to prime and throw the grenade?
+					if (action.haveTU())
+					{
+						action.target = currentPosition;
+						Position originVoxel = _save->getTileEngine()->getOriginVoxel(action, 0);
+						Position targetVoxel = currentPosition.toVoxel() + Position(8, 8, (2 + -_save->getTile(currentPosition)->getTerrainLevel()));
+						if (!_save->getTileEngine()->validateThrow(action, originVoxel, targetVoxel, _save->getDepth()))
+							continue;
+						float currentEfficacy = brutalExplosiveEfficacy(currentPosition, _unit, radius, true);
+						if (_traceAI && currentEfficacy > 0)
+						{
+							Tile *tile = _save->getTile(currentPosition);
+							tile->setMarkerColor(currentEfficacy);
+							tile->setPreview(10);
+							tile->setTUMarker(currentEfficacy);
+						}
+						if (currentEfficacy > bestScore)
+						{
+							bestReachablePosition = currentPosition;
+							bestScore = currentEfficacy;
+						}
+					}
+				}
+			}
+		}
+	}
+	if (bestScore > 0)
+	{
+		_attackAction.weapon = grenade;
+		_attackAction.target = bestReachablePosition;
+		_attackAction.type = BA_THROW;
+		_rifle = false;
+		_melee = false;
 	}
 }
 
