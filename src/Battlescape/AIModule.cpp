@@ -2960,6 +2960,38 @@ void AIModule::brutalThink(BattleAction* action)
 		if (friendsWithLof)
 			break;
 	}
+
+	float shortestDist = 255;
+	int shortestWalkingPath = 10000;
+	BattleUnit *unitToWalkTo = NULL;
+	int primeScore = 0;
+	for (BattleUnit *target : *(_save->getUnits()))
+	{
+		if (target->isOut())
+			continue;
+		float primeDist = Position::distance(_unit->getPosition(), target->getPosition());
+		if (target->getFaction() == _unit->getFaction())
+		{
+			if (primeDist <= explosionRadius)
+				primeScore -= 2;
+			continue;
+		}
+		if (primeDist <= explosionRadius)
+			primeScore++;
+		float currentDist = Position::distance(bestPostionToAttackFrom, target->getPosition());
+		int currentWalkPath = tuCostToReachPosition(target->getPosition());
+		if (currentDist < shortestDist)
+		{
+			shortestDist = currentDist;
+			unitToFaceTo = target;
+		}
+		if (currentWalkPath < shortestWalkingPath)
+		{
+			shortestWalkingPath = currentWalkPath;
+			unitToWalkTo = target;
+		}
+	}
+
 	BattleActionCost snapCost = BattleActionCost(BA_SNAPSHOT, _unit, action->weapon);
 	Tile *encircleTile = NULL;
 	float closestEncircleDist = 10000;
@@ -3024,6 +3056,8 @@ void AIModule::brutalThink(BattleAction* action)
 			if (currentScore > 0)
 			{
 				float encircleDist = Position::distance(pos, _unit->getPosition());
+				if (unitToWalkTo)
+					encircleDist = Position::distance(pos, unitToWalkTo->getPosition());
 				if (pu->getTUCost(false).time + encircleDist < closestEncircleDist)
 				{
 					encircleTile = tile;
@@ -3113,36 +3147,6 @@ void AIModule::brutalThink(BattleAction* action)
 
 	Position travelTarget = _unit->getPosition();
 
-	float shortestDist = 255;
-	int shortestWalkingPath = 10000;
-	BattleUnit *unitToWalkTo = NULL;
-	int primeScore = 0;
-	for (BattleUnit *target : *(_save->getUnits()))
-	{
-		if (target->isOut())
-			continue;
-		float primeDist = Position::distance(_unit->getPosition(), target->getPosition());
-		if (target->getFaction() == _unit->getFaction())
-		{
-			if (primeDist <= explosionRadius)
-				primeScore -= 2;
-			continue;
-		}
-		if (primeDist <= explosionRadius)
-			primeScore++;
-		float currentDist = Position::distance(bestPostionToAttackFrom, target->getPosition());
-		int currentWalkPath = tuCostToReachPosition(target->getPosition());
-		if (currentDist < shortestDist)
-		{
-			shortestDist = currentDist;
-			unitToFaceTo = target;
-		}
-		if (currentWalkPath < shortestWalkingPath)
-		{
-			shortestWalkingPath = currentWalkPath;
-			unitToWalkTo = target;
-		}
-	}
 	if (_grenade && !_unit->getGrenadeFromBelt()->isFuseEnabled() && primeScore > 0)
 	{
 		BattleItem *grenade = _unit->getGrenadeFromBelt();
@@ -3227,7 +3231,6 @@ void AIModule::brutalThink(BattleAction* action)
 	{
 		if (action->target == _unit->getPosition())
 		{
-			Tile *tile = _save->getTile(_unit->getPosition());
 			if (action->finalFacing != _unit->getDirection() && action->finalFacing != -1)
 			{
 				action->type = BA_TURN;
