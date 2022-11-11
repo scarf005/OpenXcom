@@ -1523,10 +1523,6 @@ void SavedBattleGame::endTurn()
 			{
 				(*i)->setTurnsSinceSpotted(0);
 			}
-			if ((*i)->getTurnsSinceSeen() < 255)
-			{
-				(*i)->setTurnsSinceSeen((*i)->getTurnsSinceSeen() + 1);
-			}
 			if ((*i)->getAIModule())
 			{
 				(*i)->getAIModule()->reset(); // clean up AI state
@@ -1536,6 +1532,15 @@ void SavedBattleGame::endTurn()
 			{
 				(*i)->setTurnsLeftSpottedForSnipers((*i)->getTurnsLeftSpottedForSnipers() - 1);
 			}
+		}
+	}
+
+	// I want this to happen on either player's half-turn, so the aliens don't remember locations of people that were briefly visible to them on the player's turn
+	for (std::vector<BattleUnit *>::iterator i = _units.begin(); i != _units.end(); ++i)
+	{
+		if ((*i)->getTurnsSinceSeen() < 255)
+		{
+			(*i)->setTurnsSinceSeen((*i)->getTurnsSinceSeen() + 1);
 		}
 	}
 
