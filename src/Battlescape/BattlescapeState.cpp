@@ -65,6 +65,8 @@
 #include "../Menu/PauseState.h"
 #include "../Menu/LoadGameState.h"
 #include "../Menu/SaveGameState.h"
+#include "../Menu/MainMenuState.h"
+#include "../Menu/StartState.h"
 #include "../Mod/Mod.h"
 #include "../Mod/RuleItem.h"
 #include "../Mod/AlienDeployment.h"
@@ -2852,6 +2854,20 @@ inline void BattlescapeState::handle(Action *action)
 					else if (key == Options::keyQuickLoad)
 					{
 						_game->pushState(new LoadGameState(OPT_BATTLESCAPE, SAVE_QUICK, _palette));
+					}
+					else if (key == Options::keyModsReload)
+					{
+						// Reset touch flags
+						_game->resetTouchButtonFlags();
+
+						if (_game->getSavedGame()->getSavedBattle()->getAmbientSound() != Mod::NO_SOUND)
+							_game->getMod()->getSoundByDepth(0, _game->getSavedGame()->getSavedBattle()->getAmbientSound())->stopLoop();
+						Screen::updateScale(Options::geoscapeScale, Options::baseXGeoscape, Options::baseYGeoscape, true);
+						_game->getScreen()->resetDisplay(false);
+
+						_game->setSavedGame(0);
+						_game->setState(new MainMenuState);
+						_game->setState(new StartState);
 					}
 				}
 

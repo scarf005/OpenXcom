@@ -159,8 +159,8 @@ void create()
 	_info.push_back(OptionInfo("mousewheelSpeed", &mousewheelSpeed, 3, "STR_MOUSEWHEEL_SPEED", "STR_GENERAL"));
 	_info.push_back(OptionInfo("changeValueByMouseWheel", &changeValueByMouseWheel, 0, "STR_CHANGEVALUEBYMOUSEWHEEL", "STR_GENERAL"));
 	_info.push_back(OptionInfo("soldierDiaries", &soldierDiaries, true));
-	_info.push_back(OptionInfo("showCraftHangar", &showCraftHangar, false, "STR_SHOW_CRAFT_HANGAR", "STR_GENERAL"));	
-	
+	_info.push_back(OptionInfo("showCraftHangar", &showCraftHangar, false, "STR_SHOW_CRAFT_HANGAR", "STR_GENERAL"));
+
 // this should probably be any small screen touch-device, i don't know the defines for all of them so i'll cover android and IOS as i imagine they're more common
 #ifdef __ANDROID_API__
 	_info.push_back(OptionInfo("maximizeInfoScreens", &maximizeInfoScreens, true, "STR_MAXIMIZE_INFO_SCREENS", "STR_GENERAL"));
@@ -434,8 +434,9 @@ void create()
 	_info.push_back(OptionInfo("keyNightVisionToggle", &keyNightVisionToggle, SDLK_SCROLLOCK, "STR_TOGGLE_NIGHT_VISION", "STR_OXCE"));
 	_info.push_back(OptionInfo("keyNightVisionHold", &keyNightVisionHold, SDLK_SPACE, "STR_HOLD_NIGHT_VISION", "STR_OXCE"));
 	_info.push_back(OptionInfo("keySelectMusicTrack", &keySelectMusicTrack, SDLK_END, "STR_SELECT_MUSIC_TRACK", "STR_OXCE"));
-	
+
 	_info.push_back(OptionInfo("keyAIList", &keyAIList, SDLK_c, "STR_keyAIList", "STR_OXCE"));
+	_info.push_back(OptionInfo("keyModsReload", &keyModsReload, SDLK_F11, "STR_RELOAD_MOD", "STR_OXCE"));
 
 #ifdef __MORPHOS__
 	_info.push_back(OptionInfo("FPS", &FPS, 15, "STR_FPS_LIMIT", "STR_GENERAL"));

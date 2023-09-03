@@ -57,6 +57,8 @@
 #include "../Savegame/Soldier.h"
 #include "../Savegame/SoldierDiary.h"
 #include "../Menu/PauseState.h"
+#include "../Menu/MainMenuState.h"
+#include "../Menu/StartState.h"
 #include "SelectMusicTrackState.h"
 #include "UfoTrackerState.h"
 #include "InterceptState.h"
@@ -652,13 +654,35 @@ void GeoscapeState::handle(Action *action)
 		// quick save and quick load
 		if (!_game->getSavedGame()->isIronman())
 		{
-			if (action->getDetails()->key.keysym.sym == Options::keyQuickSave)
+			const auto key = action->getDetails()->key.keysym.sym;
+			if (key == Options::keyQuickSave)
 			{
 				popup(new SaveGameState(OPT_GEOSCAPE, SAVE_QUICK, _palette));
 			}
-			else if (action->getDetails()->key.keysym.sym == Options::keyQuickLoad)
+			else if (key == Options::keyQuickLoad)
 			{
 				popup(new LoadGameState(OPT_GEOSCAPE, SAVE_QUICK, _palette));
+			}
+			else if (key == Options::keyModsReload)
+			{
+				// TODO: group into one function
+
+				// Reset touch flags
+				_game->resetTouchButtonFlags();
+
+				if (!_game->getSavedGame()->isIronman())
+				{
+					Screen::updateScale(Options::geoscapeScale, Options::baseXGeoscape, Options::baseYGeoscape, true);
+					_game->getScreen()->resetDisplay(false);
+
+					_game->setSavedGame(0);
+				}
+				else
+				{
+					_game->pushState(new SaveGameState(OPT_GEOSCAPE, SAVE_IRONMAN_END, _palette));
+				}
+				_game->setState(new MainMenuState);
+				_game->setState(new StartState);
 			}
 		}
 	}
