@@ -54,6 +54,13 @@ namespace OpenXcom
 OptionsBaseState::OptionsBaseState(OptionsOrigin origin) : _origin(origin), _group(0)
 {
 	// Create objects
+	if (Options::maximizeInfoScreens)
+	{
+		Options::baseXResolution = Screen::ORIGINAL_WIDTH;
+		Options::baseYResolution = Screen::ORIGINAL_HEIGHT;
+		_game->getScreen()->resetDisplay(false);
+	}
+
 	_window = new Window(this, 320, 200, 0, 0);
 
 	_btnVideo = new TextButton(80, 16, 8, 8);
@@ -213,10 +220,11 @@ void OptionsBaseState::btnOkClick(Action *)
 	Options::save();
 	_game->loadLanguages();
 	SDL_WM_GrabInput(Options::captureMouse);
-	_game->getScreen()->resetDisplay();
+
 	_game->setVolume(Options::soundVolume, Options::musicVolume, Options::uiVolume);
 	if (Options::reload && _origin == OPT_MENU)
 	{
+		_game->getScreen()->resetDisplay(false);
 		_game->setState(new StartState);
 	}
 	else
@@ -229,6 +237,7 @@ void OptionsBaseState::btnOkClick(Action *)
 			Options::useHQXFilter != Options::newHQXFilter ||
 			Options::useOpenGLShader != Options::newOpenGLShader)
 		{
+			_game->getScreen()->resetDisplay();
 			_game->pushState(new OptionsConfirmState(_origin));
 		}
 		else
@@ -249,6 +258,7 @@ void OptionsBaseState::btnCancelClick(Action *)
 	SDL_WM_GrabInput(Options::captureMouse);
 	Screen::updateScale(Options::battlescapeScale, Options::baseXBattlescape, Options::baseYBattlescape, _origin == OPT_BATTLESCAPE);
 	Screen::updateScale(Options::geoscapeScale, Options::baseXGeoscape, Options::baseYGeoscape, _origin != OPT_BATTLESCAPE);
+	_game->getScreen()->resetDisplay(false);
 	_game->setVolume(Options::soundVolume, Options::musicVolume, Options::uiVolume);
 	_game->popState();
 }
