@@ -18,9 +18,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#include "../Menu/OptionsBaseState.h"
 #include "../Mod/RuleItem.h"
-#include <string>
 #include <memory>
+#include <string>
 
 namespace OpenXcom
 {
@@ -34,6 +35,9 @@ namespace OpenXcom
 	/// Current state of ufopedia
 	struct ArticleCommonState
 	{
+		/// The origin of the options.
+		OptionsOrigin _origin = OPT_MENU;
+
 		/// Invalid index.
 		static constexpr size_t invalid = -1;
 

@@ -167,9 +167,10 @@ namespace OpenXcom
 	 * @param game Pointer to actual game.
 	 * @param article_id Article id to find.
 	 */
-	void Ufopaedia::openArticle(Game *game, const std::string &article_id)
+	void Ufopaedia::openArticle(Game *game, const std::string &article_id, OptionsOrigin origin)
 	{
 		auto state = createCommonArticleState(game->getSavedGame(), game->getMod());
+		state->_origin = origin;
 		state->current_index = getArticleIndex(state->articleList, article_id);
 		if (state->current_index != ArticleCommonState::invalid)
 		{
